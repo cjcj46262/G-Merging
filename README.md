@@ -51,5 +51,12 @@ python G_Merging.py --device_no=0 --gnn_type gcn --pretrain_strategy contextpred
 ```
 After the processing, the trained task-specific adapters will be saved in `./results/{pretrained}/adapters`
 
+You can also run the script:
+```
+bash G_Merging.sh
+```
+
+For evaluating the baseline methods, please simply run the following command:
+
 
 

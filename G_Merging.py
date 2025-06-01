@@ -60,7 +60,7 @@ def load_args():
     parser.add_argument('--JK', type=str, default="last",
                         help='how the node features across layers are combined. last, sum, max, concat')
     parser.add_argument('--gnn_type', type=str, default="gin")
-    parser.add_argument('--pretrain_strategy', type=str, default="supervised_contextpred")
+    parser.add_argument('--pretrain_strategy', type=str, default="contextpred")
     parser.add_argument('--rank', type=int, default=30)
     parser.add_argument('--index', type=int, default=0)
     parser.add_argument('--topk', type=int, default=8)
@@ -216,12 +216,12 @@ def eval(args, model, loader):
 
 def test_one_dataset(args):
     set_seed(args.seed)    
-    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
+    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
     print(model_file)
     dict_m = torch.load(model_file, map_location='cpu')
     dict_para = dict_m['model_state_dict']
 
-    # dataset split & data loader  supervised_
+    # dataset split & data loader
     dataset = MoleculeDataset(args.dataset_dir + "/" + args.dataset, dataset=args.dataset)
     train_dataset, valid_dataset, test_dataset = data_split(args, dataset)
 
@@ -237,18 +237,18 @@ def test_one_dataset(args):
 
     exam_datasets = ['tox21', 'toxcast', 'sider', 'clintox', 'bbbp', 'bace', 'hiv', 'muv']
     if args.gnn_type == 'gin':
-        pretrained_path = f'{args.model_dir}/model_gin/{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_gin/supervised_{args.pretrain_strategy}.pth'
     else:
-        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_supervised_{args.pretrain_strategy}.pth'
     task_vectors = [
-    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in exam_datasets
+    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in exam_datasets
     ]
     task_vector_sum = sum(task_vectors)
-    if args.gnn_type == 'gin' and args.pretrain_strategy == 'supervised_contextpred':
+    if args.gnn_type == 'gin' and args.pretrain_strategy == 'contextpred':
         scaling_coef_ = 0.2
-    elif args.gnn_type == 'gin' and args.pretrain_strategy == 'supervised_edgepred':
+    elif args.gnn_type == 'gin' and args.pretrain_strategy == 'edgepred':
         scaling_coef_ = 0.175
-    elif args.gnn_type == 'gcn' and args.pretrain_strategy == 'supervised_contextpred':
+    elif args.gnn_type == 'gcn' and args.pretrain_strategy == 'contextpred':
         scaling_coef_ = 0.11
 
     if args.lam:
@@ -296,12 +296,12 @@ def test_one_dataset(args):
 
 def train_one_adapters(args):
     set_seed(args.seed)    
-    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
+    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
     print(model_file)
     dict_m = torch.load(model_file, map_location='cpu')
     dict_para = dict_m['model_state_dict']
 
-    # dataset split & data loader  supervised_
+    # dataset split & data loader
     dataset = MoleculeDataset(args.dataset_dir + "/" + args.dataset, dataset=args.dataset)
     train_dataset, valid_dataset, test_dataset = data_split(args, dataset)
 
@@ -317,18 +317,18 @@ def train_one_adapters(args):
 
     exam_datasets = ['tox21', 'toxcast', 'sider', 'clintox', 'bbbp', 'bace', 'hiv', 'muv']
     if args.gnn_type == 'gin':
-        pretrained_path = f'{args.model_dir}/model_gin/{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_gin/supervised_{args.pretrain_strategy}.pth'
     else:
-        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_supervised_{args.pretrain_strategy}.pth'
     task_vectors = [
-    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in exam_datasets
+    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in exam_datasets
     ]
     task_vector_sum = sum(task_vectors)
-    if args.gnn_type == 'gin' and args.pretrain_strategy == 'supervised_contextpred':
+    if args.gnn_type == 'gin' and args.pretrain_strategy == 'contextpred':
         scaling_coef_ = 0.2
-    elif args.gnn_type == 'gin' and args.pretrain_strategy == 'supervised_edgepred':
+    elif args.gnn_type == 'gin' and args.pretrain_strategy == 'edgepred':
         scaling_coef_ = 0.175
-    elif args.gnn_type == 'gcn' and args.pretrain_strategy == 'supervised_contextpred':
+    elif args.gnn_type == 'gcn' and args.pretrain_strategy == 'contextpred':
         scaling_coef_ = 0.11
 
     if args.lam:
