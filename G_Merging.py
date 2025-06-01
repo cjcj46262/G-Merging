@@ -276,7 +276,7 @@ def test_one_dataset(args):
 
     list_datasets = ['tox21', 'toxcast', 'sider', 'clintox', 'bbbp', 'bace', 'hiv', 'muv']
     for i, d_name in enumerate(list_datasets):
-        model_file = f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/taskArith_surgeryV2_GTOT/{d_name}_aligners.pth'
+        model_file = f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{d_name}_aligners.pth'
         dict_moe = torch.load(model_file, map_location='cpu')
         # print(dict_moe['aligner_layer0'].keys())
         # print(model.surgery_moe[i].state_dict().keys())
@@ -291,17 +291,6 @@ def test_one_dataset(args):
 
 
     te_acc = eval(args, model, test_loader)
-    # checkpoint = {
-    #     'aligner_layer0': model.gnn.surgery_mlps[0].state_dict(),
-    #     'aligner_layer1': model.gnn.surgery_mlps[1].state_dict(),
-    #     'aligner_layer2': model.gnn.surgery_mlps[2].state_dict(),
-    #     'aligner_layer3': model.gnn.surgery_mlps[3].state_dict(),
-    #     'aligner_layer4': model.gnn.surgery_mlps[4].state_dict(),
-    #     'aligner_graph': model.surgery_mlp.state_dict(),
-        
-    # }
-    # os.makedirs(f'./shell/{args.gnn_type}_{args.pretrain_strategy}', exist_ok=True)
-    # torch.save(checkpoint, f"./shell/{args.gnn_type}_{args.pretrain_strategy}/taskArith_surgeryV2_GTOT_218/{args.dataset}_aligners.pth")
     print(f'test acc:{te_acc:.2f} ')
     # print(te_acc)
     return te_acc
@@ -422,7 +411,7 @@ def train_one_adapters(args):
         
     }
     # os.makedirs(f'./shell/{args.gnn_type}_{args.pretrain_strategy}', exist_ok=True)
-    torch.save(checkpoint, f"./shell1/{args.gnn_type}_{args.pretrain_strategy}/taskArith_surgeryV2_GTOT/{args.dataset}_aligners.pth")
+    torch.save(checkpoint, f"./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_aligners.pth")
     print(f'test acc:{te_acc:.2f} ')
     # print(te_acc)
     return te_acc
@@ -457,21 +446,21 @@ def main(args):
         # acc = train_one_adapters(args)
         acc = test_one_dataset(args)
         all_acc.append(acc)
-        with open(f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/AGMM.txt', 'a') as file:
+        with open(f'./results/{args.gnn_type}_{args.pretrain_strategy}/G_Merging.txt', 'a') as file:
             file.write(f'data name: {dataset_name}\n')
             file.write(f'Test ROC AUC score: {acc}\n')
-    all_acc_finetune = []
-    with open(f'./shell/{args.gnn_type}_{args.pretrain_strategy}/finetune_model.txt', 'r') as file:
-        for line in file:
-            match = re.search(r'Test ROC AUC score: ([\d\.]+)', line)
-            if match:
-                all_acc_finetune.append(float(match.group(1)))
+    # all_acc_finetune = []
+    # with open(f'./shell/{args.gnn_type}_{args.pretrain_strategy}/finetune_model.txt', 'r') as file:
+    #     for line in file:
+    #         match = re.search(r'Test ROC AUC score: ([\d\.]+)', line)
+    #         if match:
+    #             all_acc_finetune.append(float(match.group(1)))
     Nscore = 0
     for i in range(8):
-        Nscore += all_acc[i] / all_acc_finetune[i]
+        Nscore += all_acc[i]
     Nscore = Nscore / 8 * 100
     # print(f'Nscore: {Nscore:.2f}, file name: {file_name}')
-    print(f'Nscore: {Nscore:.2f}')
+    print(f'Average score: {Nscore:.2f}')
 
 
 
