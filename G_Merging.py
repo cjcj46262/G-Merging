@@ -276,7 +276,7 @@ def test_one_dataset(args):
 
     list_datasets = ['tox21', 'toxcast', 'sider', 'clintox', 'bbbp', 'bace', 'hiv', 'muv']
     for i, d_name in enumerate(list_datasets):
-        model_file = f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{d_name}_adapters.pth'
+        model_file = f'./results/{args.gnn_type}_{args.pretrain_strategy}/adapters/{d_name}_adapters.pth'
         dict_moe = torch.load(model_file, map_location='cpu')
         for layer in range(args.num_layer):
             model.gnn.surgery_moe_layers[layer][i].load_state_dict(dict_moe[f'adapter_layer{layer}'])
@@ -408,7 +408,7 @@ def train_one_adapters(args):
         
     }
     # os.makedirs(f'./shell/{args.gnn_type}_{args.pretrain_strategy}', exist_ok=True)
-    torch.save(checkpoint, f"./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_adapters.pth")
+    torch.save(checkpoint, f"./results/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_adapters.pth")
     print(f'test acc:{te_acc:.2f} ')
     # print(te_acc)
     return te_acc

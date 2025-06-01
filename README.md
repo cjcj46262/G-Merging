@@ -38,15 +38,18 @@ torchvision==0.20.1+cu121
 ## Preliminaries
 We provide the `.pt` and `.pth` files of both pre-trained GNN models and fully fine-tuned models in the directory `./models`. You can directly utilize them without costly training or fine-tuning.
 
+The datasets we use are in the directory `./data`, 
+
 
 
 ## Run the code
-Simply run the following command to get started.
+For evaluating our method **G-Merging**, please simply run the following command to get started.
 ```
 python G_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 python G_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy edgepred
 python G_Merging.py --device_no=0 --gnn_type gcn --pretrain_strategy contextpred
 ```
+After the processing, the trained task-specific adapters will be saved in `./results/{pretrained}/adapters`
 
 
 
