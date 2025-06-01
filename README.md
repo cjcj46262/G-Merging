@@ -10,7 +10,7 @@ The pretrain-finetuning paradigm has achieved notable success in graph learning.
 
 ## Framework
 
-![overall framework](./G_Merging.png)
+![overall framework](./G-Merging.pdf)
 
 [//]: # (<p align="center">)
 
