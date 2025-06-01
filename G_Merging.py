@@ -276,14 +276,11 @@ def test_one_dataset(args):
 
     list_datasets = ['tox21', 'toxcast', 'sider', 'clintox', 'bbbp', 'bace', 'hiv', 'muv']
     for i, d_name in enumerate(list_datasets):
-        model_file = f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{d_name}_aligners.pth'
+        model_file = f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{d_name}_adapters.pth'
         dict_moe = torch.load(model_file, map_location='cpu')
-        # print(dict_moe['aligner_layer0'].keys())
-        # print(model.surgery_moe[i].state_dict().keys())
-        # sys.exit()
         for layer in range(args.num_layer):
-            model.gnn.surgery_moe_layers[layer][i].load_state_dict(dict_moe[f'aligner_layer{layer}'])
-        model.surgery_moe[i].load_state_dict(dict_moe['aligner_graph'])
+            model.gnn.surgery_moe_layers[layer][i].load_state_dict(dict_moe[f'adapter_layer{layer}'])
+        model.surgery_moe[i].load_state_dict(dict_moe['adapter_graph'])
     model = model.to(args.device)
 
 
@@ -402,16 +399,16 @@ def train_one_adapters(args):
 
     te_acc = eval(args, model, test_loader)
     checkpoint = {
-        'aligner_layer0': model.gnn.surgery_mlps[0].state_dict(),
-        'aligner_layer1': model.gnn.surgery_mlps[1].state_dict(),
-        'aligner_layer2': model.gnn.surgery_mlps[2].state_dict(),
-        'aligner_layer3': model.gnn.surgery_mlps[3].state_dict(),
-        'aligner_layer4': model.gnn.surgery_mlps[4].state_dict(),
-        'aligner_graph': model.surgery_mlp.state_dict(),
+        'adapter_layer0': model.gnn.surgery_mlps[0].state_dict(),
+        'adapter_layer1': model.gnn.surgery_mlps[1].state_dict(),
+        'adapter_layer2': model.gnn.surgery_mlps[2].state_dict(),
+        'adapter_layer3': model.gnn.surgery_mlps[3].state_dict(),
+        'adapter_layer4': model.gnn.surgery_mlps[4].state_dict(),
+        'adapter_graph': model.surgery_mlp.state_dict(),
         
     }
     # os.makedirs(f'./shell/{args.gnn_type}_{args.pretrain_strategy}', exist_ok=True)
-    torch.save(checkpoint, f"./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_aligners.pth")
+    torch.save(checkpoint, f"./shell1/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_adapters.pth")
     print(f'test acc:{te_acc:.2f} ')
     # print(te_acc)
     return te_acc

@@ -35,28 +35,10 @@ torch_spline_conv==1.2.2+pt25cu121
 torchaudio==2.5.1+cu121
 torchvision==0.20.1+cu121
 ```
-## Download models
-we provide the .pth of pre-trained GNN models and full fine-tuned models,
+## Preliminaries
+We provide the `.pt` and `.pth` files of both pre-trained GNN models and fully fine-tuned models in the directory `./models`. You can directly utilize them without costly training or fine-tuning.
 
-You can make a directory `./data` and download all the models through the Google drive from 
 
-Make sure the data files are in the `./models` folder:
-```
-project
-│   README.md
-│   data_process.py
-│   GCAL.py
-|   main.py
-|   ...
-|
-└───data
-│       │   twitch
-|       |   fb100
-│       │   elliptic
-│       │   ogbn-arxiv
-```
-
-The detailed data processing is in the `data_process.py`.
 
 ## Run the code
 Simply run the following command to get started.
