@@ -12,11 +12,6 @@ The pretrain-finetuning paradigm has achieved notable success in graph learning.
 
 ![overall framework](./G_Merging.png)
 
-[//]: # (<p align="center">)
-
-[//]: # (  <img src="https://github.com/kimsu55/ToxExpert/blob/main/img/fig3_main_arch.jpg" width="500" title="The overall framework of TopExpert">)
-
-[//]: # (</p>)
 
 ## Dependency
 We used Python 3.10.16, PyTorch 2.5.1, PyTorch Geometric 2.6.1. For the Python packages, please see requirements.txt.
@@ -39,7 +34,7 @@ torchvision==0.20.1+cu121
 ## Preliminaries
 We provide the `.pt` and `.pth` files of both pre-trained GNN models and fully fine-tuned models in the directory `./models`. You can directly utilize them without costly training or fine-tuning.
 
-The datasets we use are in the directory `./data`, 
+The datasets we use are in the directory `./data`, containing the raw SMILES representations of molecules.
 
 
 
