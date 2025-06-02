@@ -22,10 +22,11 @@ The pretrain-finetuning paradigm has achieved notable success in graph learning.
 We used Python 3.10.16, PyTorch 2.5.1, PyTorch Geometric 2.6.1. For the Python packages, please see requirements.txt.
 
 ```
-numpy==2.1.2
+numpy==1.26.3
 pandas==2.2.3
 pillow==11.0.0
 scipy==1.15.2
+rdkit==2022.3.3
 torch==2.5.1+cu121
 torch-geometric==2.6.1
 torch_cluster==1.6.3+pt25cu121
