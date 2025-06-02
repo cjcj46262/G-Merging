@@ -39,13 +39,13 @@ The datasets we use are in the directory `./data`, containing the raw SMILES rep
 
 
 ## Run the code
-For evaluating our method **G-Merging**, please simply run the following command to get started.
+For evaluating our method **G-Merging**, please simply run the following command to get started with different GNN backbones.
 ```
 python G_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 python G_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy edgepred
 python G_Merging.py --device_no=0 --gnn_type gcn --pretrain_strategy contextpred
 ```
-After the processing, the trained task-specific adapters will be saved in `./results/{pretrained}/adapters`
+After the processing, the trained task-specific adapters will be saved in `./results/{pretrained}/adapters`, and the test results are recorded in `./results/{pretrained}/G_Merging.txt`.
 
 You can also run the script:
 ```
@@ -56,10 +56,13 @@ For evaluating the baseline methods, please simply run the following command:
 ```
 python multitask_learning.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 python pretrain_finetuned.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
-python task_arithmetic.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
-python emr_merge.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
+python task_arithmetic.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred --merge weights_average
+python task_arithmetic.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred --merge task_arithmetic
+python task_arithmetic.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred --merge ties_merge
+python task_arithmetic.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred --merge emr_merge
 python Ada_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 python Twin_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 ```
+The above Python scripts are located in the directory `./expe/baseline/` and need to be moved to the project root directory `./`  before execution.
 
 

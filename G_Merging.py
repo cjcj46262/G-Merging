@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
 from splitters import data_split
 from loader import MoleculeDataset
-from model import GNN_topexpert, GNN_graphpred
+from model import GNN_graphpred
 from task_vectors import TaskVector
 from MWD.gtot_tuning import GTOTRegularization
 from MWD.delta import IntermediateLayerGetter, L2Regularization, FrobeniusRegularization
@@ -455,7 +455,7 @@ def main(args):
     Nscore = 0
     for i in range(8):
         Nscore += all_acc[i]
-    Nscore = Nscore / 8 * 100
+    Nscore = Nscore / 8
     # print(f'Nscore: {Nscore:.2f}, file name: {file_name}')
     print(f'Average score: {Nscore:.2f}')
 

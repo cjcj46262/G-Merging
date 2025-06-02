@@ -93,7 +93,7 @@ def load_args():
     parser.add_argument('--JK', type=str, default="last",
                         help='how the node features across layers are combined. last, sum, max, concat')
     parser.add_argument('--gnn_type', type=str, default="gin")
-    parser.add_argument('--pretrain_strategy', type=str, default="supervised_contextpred")
+    parser.add_argument('--pretrain_strategy', type=str, default="contextpred")
     parser.add_argument('--rank', type=int, default=30)
     parser.add_argument('--index', type=int, default=0)
 
@@ -314,7 +314,7 @@ def joint_train_datasets(args):
     for dataset_name, num_tasks in zip(list_datasets, list_num_tasks):
         args.dataset = dataset_name
         args.num_tasks = num_tasks
-        model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
+        model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
         # print(model_file)
         dict_m = torch.load(model_file, map_location='cpu')
         dict_para = dict_m['model_state_dict']
@@ -331,9 +331,9 @@ def joint_train_datasets(args):
 
 
     if args.gnn_type == 'gin':
-        pretrained_path = f'{args.model_dir}/model_gin/{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_gin/supervised_{args.pretrain_strategy}.pth'
     else:
-        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_supervised_{args.pretrain_strategy}.pth'
     pretrained_state_dict = torch.load(pretrained_path, map_location='cpu')
     pretrained_state_dict = dict(pretrained_state_dict)
     pretrained_param_dict = {}
@@ -349,7 +349,7 @@ def joint_train_datasets(args):
         pretrained_param_dict[key] = pretrained_state_dict[key]
     
     task_vectors = [
-    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in list_datasets
+    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in list_datasets
     ]
     paramslist = []
     paramslist += [tuple(v.detach().requires_grad_().cpu() for _, v in pretrained_param_dict.items())] # pretrain
@@ -535,7 +535,7 @@ def joint_train_datasets(args):
     
 
     for acc in all_acc:
-        with open(f'./shell/{args.gnn_type}_{args.pretrain_strategy}/ada_merging.txt', 'a') as file:
+        with open(f'./results/{args.gnn_type}_{args.pretrain_strategy}/ada_merging.txt', 'a') as file:
             file.write(f'data name: {dataset_name}\n')
             file.write(f'Test ROC AUC score: {acc}\n')
     
@@ -603,16 +603,16 @@ def main(args):
     #     # with open('./shell/supervised_contextpred/taskArith_surgeryV2_GTOT_hyper.txt', 'a') as file:
     #     #     file.write(f'data name: {dataset_name}\n')
     #     #     file.write(f'Test ROC AUC score: {acc}\n')
-    all_acc_finetune = []
-    with open(f'./shell/{args.gnn_type}_{args.pretrain_strategy}/finetune_model.txt', 'r') as file:
-        for line in file:
-            match = re.search(r'Test ROC AUC score: ([\d\.]+)', line)
-            if match:
-                all_acc_finetune.append(float(match.group(1)))
+    # all_acc_finetune = []
+    # with open(f'./results/{args.gnn_type}_{args.pretrain_strategy}/finetune_model.txt', 'r') as file:
+    #     for line in file:
+    #         match = re.search(r'Test ROC AUC score: ([\d\.]+)', line)
+    #         if match:
+    #             all_acc_finetune.append(float(match.group(1)))
     Nscore = 0
     for i in range(8):
-        Nscore += all_acc[i] / all_acc_finetune[i]
-    Nscore = Nscore / 8 * 100
+        Nscore += all_acc[i]
+    Nscore = Nscore / 8
     # print(f'Nscore: {Nscore:.2f}, file name: {file_name}')
     print(f'Nscore: {Nscore:.2f}')
 

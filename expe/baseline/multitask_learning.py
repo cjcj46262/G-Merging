@@ -79,7 +79,7 @@ def load_args():
     parser.add_argument('--JK', type=str, default="last",
                         help='how the node features across layers are combined. last, sum, max, concat')
     parser.add_argument('--gnn_type', type=str, default="gin")
-    parser.add_argument('--pretrain_strategy', type=str, default="supervised_contextpred")
+    parser.add_argument('--pretrain_strategy', type=str, default="contextpred")
     parser.add_argument('--rank', type=int, default=30)
     parser.add_argument('--index', type=int, default=0)
     parser.add_argument('--topk', type=int, default=8)
@@ -222,7 +222,7 @@ def eval(args, model, loader):
 
 def test_one_dataset(args):
     set_seed(args.seed)
-    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
+    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
     print(model_file)
     dict_m = torch.load(model_file, map_location='cpu')
     dict_para = dict_m['model_state_dict']
@@ -232,7 +232,7 @@ def test_one_dataset(args):
     # print(dict_para.keys())
     # sys.exit()
 
-    # dataset split & data loader  supervised_
+    # dataset split & data loader
     dataset = MoleculeDataset(args.dataset_dir + "/" + args.dataset, dataset=args.dataset)
     train_dataset, valid_dataset, test_dataset = data_split(args, dataset)
 
@@ -247,7 +247,7 @@ def test_one_dataset(args):
 
 
 
-    gnn_path = f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning/gnn_para.pth'
+    gnn_path = f'./results/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning/gnn_para.pth'
     gnn_state_dict = torch.load(gnn_path, map_location='cpu')
 
     model.gnn.load_state_dict(gnn_state_dict, strict=False)
@@ -329,7 +329,7 @@ def joint_train(args):
         args.num_tasks = num_tasks
         args.batch_size = batch_size
 
-        model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
+        model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
         dict_m = torch.load(model_file, map_location='cpu')
         dict_para = dict_m['model_state_dict']
         ftmodel = GNN_graphpred(args)
@@ -338,7 +338,7 @@ def joint_train(args):
         list_ftmodel.append(ftmodel)
 
 
-        # dataset split & data loader  supervised_
+        # dataset split & data loader
         dataset = MoleculeDataset(args.dataset_dir + "/" + args.dataset, dataset=args.dataset)
         train_dataset, valid_dataset, test_dataset = data_split(args, dataset)
 
@@ -348,9 +348,9 @@ def joint_train(args):
     model = GNN_graphpred(args)
 
     if args.gnn_type == 'gin':
-        pretrained_path = f'{args.model_dir}/model_gin/{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_gin/supervised_{args.pretrain_strategy}.pth'
     else:
-        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_supervised_{args.pretrain_strategy}.pth'
 
 
     pretrained_state_dict = torch.load(pretrained_path, map_location='cpu')
@@ -396,9 +396,9 @@ def joint_train(args):
     #     'aligner_graph': model.surgery_mlp.state_dict(),
     #
     # }
-    os.makedirs(f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning', exist_ok=True)
+    os.makedirs(f'./results/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning', exist_ok=True)
     torch.save(model.gnn.state_dict(),
-               f"./shell1/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning/gnn_para.pth")
+               f"./results/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning/gnn_para.pth")
     # print(te_acc)
     acc = 0
     return acc
@@ -434,26 +434,20 @@ def main(args):
         # acc = train_one_adapters(args)
         acc = test_one_dataset(args)
         all_acc.append(acc)
-        with open(f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning.txt', 'a') as file:
+        with open(f'./results/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning.txt', 'a') as file:
             file.write(f'data name: {dataset_name}\n')
             file.write(f'Test ROC AUC score: {acc}\n')
-    with open(f'./shell1/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning.txt', 'a') as file:
+    with open(f'./results/{args.gnn_type}_{args.pretrain_strategy}/multitask_learning.txt', 'a') as file:
         file.write(f"train time : {minutes:.2f} min {seconds:.2f} s\n")
         file.write(f"train time : {elapsed_time:.2f} s")
 
 
-    all_acc_finetune = []
-    with open(f'./shell/{args.gnn_type}_{args.pretrain_strategy}/finetune_model.txt', 'r') as file:
-        for line in file:
-            match = re.search(r'Test ROC AUC score: ([\d\.]+)', line)
-            if match:
-                all_acc_finetune.append(float(match.group(1)))
     Nscore = 0
     for i in range(8):
-        Nscore += all_acc[i] / all_acc_finetune[i]
-    Nscore = Nscore / 8 * 100
+        Nscore += all_acc[i]
+    Nscore = Nscore / 8
     # print(f'Nscore: {Nscore:.2f}, file name: {file_name}')
-    print(f'Nscore: {Nscore:.2f}')
+    print(f'Average score: {Nscore:.2f}')
 
     # all_acc = []
     # for index, (dataset_name, num_tasks) in enumerate(zip(list_datasets, list_num_tasks, list_batch_sizes, list_alpha, list_lr_graph, list_lr_node)):
@@ -466,11 +460,11 @@ def main(args):
     #     args.lr_node = lr_node
     #     acc = train_one_adapters(args)
     #     all_acc.append(acc)
-    #     # with open('./shell/supervised_contextpred/taskArith_surgeryV2_GTOT_hyper.txt', 'a') as file:
+    #     # with open('./shell/contextpred/taskArith_surgeryV2_GTOT_hyper.txt', 'a') as file:
     #     #     file.write(f'data name: {dataset_name}\n')
     #     #     file.write(f'Test ROC AUC score: {acc}\n')
     # all_acc_finetune = []
-    # with open('./shell/supervised_contextpred/finetune_model.txt', 'r') as file:
+    # with open('./shell/contextpred/finetune_model.txt', 'r') as file:
     #     for line in file:
     #         match = re.search(r'Test ROC AUC score: ([\d\.]+)', line)
     #         if match:

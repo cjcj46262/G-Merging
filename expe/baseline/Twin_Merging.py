@@ -96,7 +96,7 @@ def load_args():
     parser.add_argument('--JK', type=str, default="last",
                         help='how the node features across layers are combined. last, sum, max, concat')
     parser.add_argument('--gnn_type', type=str, default="gin")
-    parser.add_argument('--pretrain_strategy', type=str, default="supervised_contextpred")
+    parser.add_argument('--pretrain_strategy', type=str, default="contextpred")
     parser.add_argument('--rank', type=int, default=30)
     parser.add_argument('--index', type=int, default=0)
 
@@ -309,19 +309,19 @@ def test_one_dataset(args):
         pretrainmodel.gnn.gnns[4].register_forward_hook(hook_fn)
 
     ## load models
-    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
+    model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
     print(model_file)
     dict_m = torch.load(model_file, map_location='cpu')
     dict_para = dict_m['model_state_dict']
 
     exam_datasets = ['tox21', 'toxcast', 'sider', 'clintox', 'bbbp', 'bace', 'hiv', 'muv']
     if args.gnn_type == 'gin':
-        pretrained_path = f'{args.model_dir}/model_gin/{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_gin/supervised_{args.pretrain_strategy}.pth'
     else:
-        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_{args.pretrain_strategy}.pth'
+        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_supervised_{args.pretrain_strategy}.pth'
     pretrained_state_dict = torch.load(pretrained_path, map_location='cpu')
     task_vectors = [
-    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in exam_datasets
+    TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{dataset_name}_sd0.pt') for dataset_name in exam_datasets
     ]
     for task_vector in task_vectors:
         task_vector.sparsify(0.1)
@@ -400,7 +400,7 @@ def create_data_for_routertraining(args):
         args.dataset = dataset_name
         args.num_tasks = num_tasks
 
-        model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
+        model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
         print(model_file)
         dict_m = torch.load(model_file, map_location='cpu')
         dict_para = dict_m['model_state_dict']
@@ -417,9 +417,9 @@ def create_data_for_routertraining(args):
         model.load_state_dict(dict_para, strict=False)
 
         if args.gnn_type == 'gin':
-            pretrained_path = f'{args.model_dir}/model_gin/{args.pretrain_strategy}.pth'
+            pretrained_path = f'{args.model_dir}/model_gin/supervised_{args.pretrain_strategy}.pth'
         else:
-            pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_{args.pretrain_strategy}.pth'
+            pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_supervised_{args.pretrain_strategy}.pth'
 
         pretrained_state_dict = torch.load(pretrained_path, map_location='cpu')
         model.gnn.load_state_dict(pretrained_state_dict, strict=False)
@@ -650,7 +650,7 @@ def main(args):
         args.num_tasks = num_tasks
         acc = test_one_dataset(args)
         all_acc.append(acc)
-        with open(f'./shell/{args.gnn_type}_{args.pretrain_strategy}/twin_merging.txt', 'a') as file:
+        with open(f'./results/{args.gnn_type}_{args.pretrain_strategy}/twin_merging.txt', 'a') as file:
             file.write(f'data name: {dataset_name}\n')
             file.write(f'Test ROC AUC score: {acc}\n')
     
