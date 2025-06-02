@@ -54,12 +54,12 @@ bash G_Merging.sh
 
 For evaluating the baseline methods, please simply run the following command:
 ```
-python multitask_learning.py --device_no=0 --gnn_type gcn --pretrain_strategy contextpred
+python multitask_learning.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 python pretrain_finetuned.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
-python task_arithmetic.py --device_no=0 --gnn_type gin --pretrain_strategy edgepred
-python emr_merge.py --device_no=0 --gnn_type gin --pretrain_strategy edgepred
+python task_arithmetic.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
+python emr_merge.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 python Ada_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
-python Twin_Merging.py --device_no=0 --gnn_type gcn --pretrain_strategy contextpred
+python Twin_Merging.py --device_no=0 --gnn_type gin --pretrain_strategy contextpred
 ```
 
 
