@@ -28,26 +28,7 @@ def generate_scaffold(smiles, include_chirality=False):
 def scaffold_split(dataset, smiles_list, task_idx=None, null_value=0,
                    frac_train=0.8, frac_valid=0.1, frac_test=0.1,
                    return_smiles=False):
-    """
-    Adapted from https://github.com/deepchem/deepchem/blob/master/deepchem/splits/splitters.py
-    Split dataset by Bemis-Murcko scaffolds
-    This function can also ignore examples containing null values for a
-    selected task when splitting. Deterministic split
-    :param dataset: pytorch geometric dataset obj
-    :param smiles_list: list of smiles corresponding to the dataset obj
-    :param task_idx: column idx of the data.y tensor. Will filter out
-    examples with null value in specified task column of the data.y tensor
-    prior to splitting. If None, then no filtering
-    :param null_value: float that specifies null value in data.y to filter if
-    task_idx is provided
-    :param frac_train:
-    :param frac_valid:
-    :param frac_test:
-    :param return_smiles:
-    :return: train, valid, test slices of the input dataset obj. If
-    return_smiles = True, also returns ([train_smiles_list],
-    [valid_smiles_list], [test_smiles_list])
-    """
+
     np.testing.assert_almost_equal(frac_train + frac_valid + frac_test, 1.0)
 
     if task_idx != None:
@@ -115,24 +96,7 @@ def scaffold_split(dataset, smiles_list, task_idx=None, null_value=0,
 
 def random_scaffold_split(dataset, smiles_list, task_idx=None, null_value=0,
                    frac_train=0.8, frac_valid=0.1, frac_test=0.1, seed=0):
-    """
-    Adapted from https://github.com/pfnet-research/chainer-chemistry/blob/master/chainer_chemistry/dataset/splitters/scaffold_splitter.py
-    Split dataset by Bemis-Murcko scaffolds
-    This function can also ignore examples containing null values for a
-    selected task when splitting. Deterministic split
-    :param dataset: pytorch geometric dataset obj
-    :param smiles_list: list of smiles corresponding to the dataset obj
-    :param task_idx: column idx of the data.y tensor. Will filter out
-    examples with null value in specified task column of the data.y tensor
-    prior to splitting. If None, then no filtering
-    :param null_value: float that specifies null value in data.y to filter if
-    task_idx is provided
-    :param frac_train:
-    :param frac_valid:
-    :param frac_test:
-    :param seed;
-    :return: train, valid, test slices of the input dataset obj
-    """
+
 
     np.testing.assert_almost_equal(frac_train + frac_valid + frac_test, 1.0)
 
@@ -181,20 +145,7 @@ def random_scaffold_split(dataset, smiles_list, task_idx=None, null_value=0,
 def random_split(dataset, task_idx=None, null_value=0,
                    frac_train=0.8, frac_valid=0.1, frac_test=0.1, seed=0,
                  smiles_list=None, return_idx=False):
-    """
 
-    :param dataset:
-    :param task_idx:
-    :param null_value:
-    :param frac_train:
-    :param frac_valid:
-    :param frac_test:
-    :param seed:
-    :param smiles_list: list of smiles corresponding to the dataset obj, or None
-    :return: train, valid, test slices of the input dataset obj. If
-    smiles_list != None, also returns ([train_smiles_list],
-    [valid_smiles_list], [test_smiles_list])
-    """
     np.testing.assert_almost_equal(frac_train + frac_valid + frac_test, 1.0)
 
     if task_idx != None:
@@ -244,20 +195,7 @@ def random_split(dataset, task_idx=None, null_value=0,
 def cv_random_split(dataset, fold_idx = 0,
                    frac_train=0.9, frac_valid=0.1, seed=0,
                  smiles_list=None):
-    """
 
-    :param dataset:
-    :param task_idx:
-    :param null_value:
-    :param frac_train:
-    :param frac_valid:
-    :param frac_test:
-    :param seed:
-    :param smiles_list: list of smiles corresponding to the dataset obj, or None
-    :return: train, valid, test slices of the input dataset obj. If
-    smiles_list != None, also returns ([train_smiles_list],
-    [valid_smiles_list], [test_smiles_list])
-    """
 
     np.testing.assert_almost_equal(frac_train + frac_valid, 1.0)
 
