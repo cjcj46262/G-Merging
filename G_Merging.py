@@ -19,7 +19,7 @@ from model import GNN_graphpred
 from task_vectors import TaskVector
 from MWD.gtot_tuning import GTOTRegularization
 from MWD.delta import IntermediateLayerGetter, L2Regularization, FrobeniusRegularization
-from dynamic_router import PromptMoERouter
+from dynamic_router import MotifMoERouter
 from util import *
 from collections import OrderedDict
 from itertools import chain
@@ -372,17 +372,10 @@ def train_one_adapters(args):
     model.to(args.device)
     finetune_model.to(args.device)
 
-    # --- Task-specific Prompt (Phase 2, Step 1) ---
-    task_prompt = torch.nn.Parameter(
-        torch.empty(args.num_prompts, args.emb_dim, device=args.device)
-    )
-    torch.nn.init.xavier_uniform_(task_prompt.data)
-
     optimizer = torch.optim.Adam(
         [
             {"params": model.surgery_mlp.parameters(), "lr": args.lr_graph},
             {"params": model.gnn.surgery_mlps.parameters(), "lr": args.lr_node},
-            {"params": [task_prompt], "lr": args.lr_node},
         ],
         betas=(0.9, 0.999),
         weight_decay=0.
@@ -410,7 +403,6 @@ def train_one_adapters(args):
         'adapter_layer3': model.gnn.surgery_mlps[3].state_dict(),
         'adapter_layer4': model.gnn.surgery_mlps[4].state_dict(),
         'adapter_graph': model.surgery_mlp.state_dict(),
-        'task_prompt': task_prompt.data,
     }
     # os.makedirs(f'./shell/{args.gnn_type}_{args.pretrain_strategy}', exist_ok=True)
     torch.save(checkpoint, f"./results/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_adapters.pth")
@@ -439,19 +431,14 @@ def main(args):
         acc, train_loader = train_one_adapters(args)
         train_loaders[index] = train_loader
 
-    # --- Build PromptMoERouter: load saved prompts from adapter checkpoints ---
-    router = PromptMoERouter(
-        num_prompts=args.num_prompts,
+    # --- Build MotifMoERouter: compute motif anchors from training data ---
+    router = MotifMoERouter(
         temperature=args.prompt_tau,
         novelty_threshold=args.novelty_threshold,
-    ).to(args.device)
+    )
 
     for index, dataset_name in enumerate(list_datasets):
-        ckpt = torch.load(
-            f'./results/{args.gnn_type}_{args.pretrain_strategy}/adapters/{dataset_name}_adapters.pth',
-            map_location=args.device
-        )
-        router.add_task_prompt(index, ckpt['task_prompt'])
+        router.add_task_motif(index, train_loaders[index])
 
     # --- Phase 3: Test with TEM router ---
     all_acc = []

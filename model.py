@@ -15,7 +15,7 @@ from torch_geometric.nn.conv import GATConv
 from torch_scatter import scatter_add
 import torch_geometric.utils as PyG_utils
 from MWD.gtot_tuning import GTOTRegularization
-from dynamic_router import PromptMoERouter
+from dynamic_router import MotifMoERouter
 import math
 
 
@@ -322,8 +322,12 @@ class GNN(torch.nn.Module):
         x = self.x_embedding1(x[:, 0]) + self.x_embedding2(x[:, 1])
 
         h_list = [x]
-        # Pre-compute routing weights once using x embeddings
-        routing_weights = self.router.route(x) if (self.moe and self.router is not None) else None
+        # Pre-compute routing weights once using motif distribution
+        if self.moe and self.router is not None:
+            w_dict = self.router.route(edge_index, x.size(0))
+            routing_weights = torch.stack(list(w_dict.values()))  # [K]
+        else:
+            routing_weights = None
         # wd_list = []  #######heatmap
         for layer in range(self.num_layer):
             h = self.gnns[layer](h_list[layer], edge_index, edge_attr)
