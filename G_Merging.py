@@ -19,7 +19,7 @@ from model import GNN_graphpred
 from task_vectors import TaskVector
 from MWD.gtot_tuning import GTOTRegularization
 from MWD.delta import IntermediateLayerGetter, L2Regularization, FrobeniusRegularization
-from dynamic_router import EvolutionAwareRouter
+from dynamic_router import PromptMoERouter
 from util import *
 from collections import OrderedDict
 from itertools import chain
@@ -90,6 +90,9 @@ def load_args():
     parser.add_argument('--lamweight', type=float, default=1, help="task vectors scalar")
     parser.add_argument('--lam', action='store_true', help="Whether to use or not")
     parser.add_argument('--num_experts', type=int, default=8)
+    parser.add_argument('--num_prompts', type=int, default=5, help='number of virtual prompt nodes per task')
+    parser.add_argument('--prompt_tau', type=float, default=0.1, help='temperature for Mini-TWD routing')
+    parser.add_argument('--novelty_threshold', type=float, default=0.5, help='OOD threshold gamma')
 
 ## GTOT
     parser.add_argument('--gtot_order', default=1, type=int, help='A^{k} in graph topology OT')
@@ -369,10 +372,17 @@ def train_one_adapters(args):
     model.to(args.device)
     finetune_model.to(args.device)
 
+    # --- Task-specific Prompt (Phase 2, Step 1) ---
+    task_prompt = torch.nn.Parameter(
+        torch.empty(args.num_prompts, args.emb_dim, device=args.device)
+    )
+    torch.nn.init.xavier_uniform_(task_prompt.data)
+
     optimizer = torch.optim.Adam(
         [
             {"params": model.surgery_mlp.parameters(), "lr": args.lr_graph},
             {"params": model.gnn.surgery_mlps.parameters(), "lr": args.lr_node},
+            {"params": [task_prompt], "lr": args.lr_node},
         ],
         betas=(0.9, 0.999),
         weight_decay=0.
@@ -400,7 +410,7 @@ def train_one_adapters(args):
         'adapter_layer3': model.gnn.surgery_mlps[3].state_dict(),
         'adapter_layer4': model.gnn.surgery_mlps[4].state_dict(),
         'adapter_graph': model.surgery_mlp.state_dict(),
-
+        'task_prompt': task_prompt.data,
     }
     # os.makedirs(f'./shell/{args.gnn_type}_{args.pretrain_strategy}', exist_ok=True)
     torch.save(checkpoint, f"./results/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_adapters.pth")
@@ -429,60 +439,19 @@ def main(args):
         acc, train_loader = train_one_adapters(args)
         train_loaders[index] = train_loader
 
-    # --- Build TEM: construct EvolutionAwareRouter and populate memory ---
-    router = EvolutionAwareRouter(feature_dim=args.emb_dim).to(args.device)
+    # --- Build PromptMoERouter: load saved prompts from adapter checkpoints ---
+    router = PromptMoERouter(
+        num_prompts=args.num_prompts,
+        temperature=args.prompt_tau,
+        novelty_threshold=args.novelty_threshold,
+    ).to(args.device)
 
-    # We need the merged backbone embeddings to build TEM anchors.
-    # Load the merged model (same logic as test_one_dataset) once to get embeddings.
-    if args.gnn_type == 'gin':
-        pretrained_path = f'{args.model_dir}/model_gin/supervised_{args.pretrain_strategy}.pth'
-    else:
-        pretrained_path = f'{args.model_dir}/model_architecture/{args.gnn_type}_supervised_{args.pretrain_strategy}.pth'
-    exam_datasets = list_datasets
-    task_vectors = [
-        TaskVector(pretrained_path, f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{d}_sd0.pt') for d in exam_datasets
-    ]
-    task_vector_sum = sum(task_vectors)
-    if args.gnn_type == 'gin' and args.pretrain_strategy == 'contextpred':
-        scaling_coef_ = 0.2
-    elif args.gnn_type == 'gin' and args.pretrain_strategy == 'edgepred':
-        scaling_coef_ = 0.175
-    elif args.gnn_type == 'gcn' and args.pretrain_strategy == 'contextpred':
-        scaling_coef_ = 0.11
-    if args.lam:
-        scaling_coef_ = args.lamweight
-
-    pretrained_state_dict = torch.load(pretrained_path, map_location='cpu')
-    task_params = {}
-    for key in pretrained_state_dict:
-        if key not in task_vector_sum.vector:
-            continue
-        task_params[key] = pretrained_state_dict[key] + scaling_coef_ * task_vector_sum.vector[key]
-
-    # Temporarily build a backbone-only model to extract embeddings for TEM
-    args_tmp_num_tasks = args.num_tasks
-    args_tmp_dataset = args.dataset
-    args_tmp_index = args.index
-    args.num_tasks = 1  # dummy, not used for embedding extraction
-    backbone_model = GNN_graphpred(args, moe=False)
-    backbone_model.gnn.load_state_dict(task_params, strict=False)
-    backbone_model = backbone_model.to(args.device)
-    backbone_model.eval()
-
-    for index, (dataset_name, num_tasks) in enumerate(zip(list_datasets, list_num_tasks)):
-        loader = train_loaders[index]
-        # Collect all node features and edge_index from one batch for TEM anchor
-        batch = next(iter(loader))
-        batch = batch.to(args.device)
-        with torch.no_grad():
-            # Get post-embedding node features from the backbone GNN input layer
-            x_emb = backbone_model.gnn.x_embedding1(batch.x[:, 0]) + backbone_model.gnn.x_embedding2(batch.x[:, 1])
-        router.add_task_to_memory(index, x_emb, batch.edge_index)
-
-    # Restore args
-    args.num_tasks = args_tmp_num_tasks
-    args.dataset = args_tmp_dataset
-    args.index = args_tmp_index
+    for index, dataset_name in enumerate(list_datasets):
+        ckpt = torch.load(
+            f'./results/{args.gnn_type}_{args.pretrain_strategy}/adapters/{dataset_name}_adapters.pth',
+            map_location=args.device
+        )
+        router.add_task_prompt(index, ckpt['task_prompt'])
 
     # --- Phase 3: Test with TEM router ---
     all_acc = []
