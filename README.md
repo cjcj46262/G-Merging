@@ -1,6 +1,6 @@
 # G-Merging
 
-Code of Paper: "G-Merging: Graph Models Merging for Parameter-Efficient Multi-Task Knowledge Consolidation"
+Code of Paper: "G-Merging: Graph Models Merging for Parameter-Efficient Multi-Task Knowledge Consolidation".  ICLR 2026
 
 **Keywords**: Model Merging, Parameter Efficient Fine-Tuning, Multi-task Learning
 
