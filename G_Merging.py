@@ -19,6 +19,7 @@ from model import GNN_graphpred
 from task_vectors import TaskVector
 from MWD.gtot_tuning import GTOTRegularization
 from MWD.delta import IntermediateLayerGetter, L2Regularization, FrobeniusRegularization
+from dynamic_router import MotifMoERouter
 from util import *
 from collections import OrderedDict
 from itertools import chain
@@ -89,6 +90,9 @@ def load_args():
     parser.add_argument('--lamweight', type=float, default=1, help="task vectors scalar")
     parser.add_argument('--lam', action='store_true', help="Whether to use or not")
     parser.add_argument('--num_experts', type=int, default=8)
+    parser.add_argument('--num_prompts', type=int, default=5, help='number of virtual prompt nodes per task')
+    parser.add_argument('--prompt_tau', type=float, default=0.1, help='temperature for Mini-TWD routing')
+    parser.add_argument('--novelty_threshold', type=float, default=0.5, help='OOD threshold gamma')
 
 ## GTOT
     parser.add_argument('--gtot_order', default=1, type=int, help='A^{k} in graph topology OT')
@@ -214,7 +218,7 @@ def eval(args, model, loader):
 
 
 
-def test_one_dataset(args):
+def test_one_dataset(args, router=None):
     set_seed(args.seed)    
     model_file = f'{args.model_dir}/ftmodels/{args.gnn_type}_supervised_{args.pretrain_strategy}/{args.gnn_type}_{args.dataset}_sd0.pt'
     print(model_file)
@@ -229,7 +233,7 @@ def test_one_dataset(args):
     val_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
     
-    model = GNN_graphpred(args, moe=True)
+    model = GNN_graphpred(args, moe=True, router=router)
     # finetune_model = GNN_graphpred(args)
     model.load_state_dict(dict_para, strict=False)
     # finetune_model.load_state_dict(dict_para)
@@ -262,10 +266,7 @@ def test_one_dataset(args):
         if key not in task_vector_sum.vector:
             print(f'Warning: key {key} is present in the pretrained state dict but not in the task vector')
             continue
-            task_params[key] = pretrained_state_dict[key]
-            # task_params1[key] = pretrained_state_dict[key]
         else:
-
             task_params[key] = pretrained_state_dict[key] + scaling_coef_ * task_vector_sum.vector[key]
 
 
@@ -342,10 +343,7 @@ def train_one_adapters(args):
         if key not in task_vector_sum.vector:
             print(f'Warning: key {key} is present in the pretrained state dict but not in the task vector')
             continue
-            task_params[key] = pretrained_state_dict[key]
-            task_params1[key] = pretrained_state_dict[key]      
         else:
-
             task_params[key] = pretrained_state_dict[key] + scaling_coef_ * task_vector_sum.vector[key]
 
 
@@ -405,13 +403,12 @@ def train_one_adapters(args):
         'adapter_layer3': model.gnn.surgery_mlps[3].state_dict(),
         'adapter_layer4': model.gnn.surgery_mlps[4].state_dict(),
         'adapter_graph': model.surgery_mlp.state_dict(),
-        
     }
     # os.makedirs(f'./shell/{args.gnn_type}_{args.pretrain_strategy}', exist_ok=True)
     torch.save(checkpoint, f"./results/{args.gnn_type}_{args.pretrain_strategy}/adapters/{args.dataset}_adapters.pth")
     print(f'test acc:{te_acc:.2f} ')
     # print(te_acc)
-    return te_acc
+    return te_acc, train_loader
 
 
 def main(args):
@@ -422,6 +419,8 @@ def main(args):
     list_lr_graph = [1e-3,1e-3,1e-3,1e-3,1e-3,1e-3,1e-3,1e-3]
     list_lr_node = [1e-3,1e-3,1e-3,1e-3,1e-3,1e-3,1e-3,1e-3]
 
+    # --- Phase 2: Train adapters and collect train loaders for TEM ---
+    train_loaders = {}
     for index, (dataset_name, num_tasks, batch_size, lr_graph, lr_node) in enumerate(zip(list_datasets, list_num_tasks, list_batch_sizes, list_lr_graph, list_lr_node)):
         args.index = index
         args.dataset = dataset_name
@@ -429,9 +428,19 @@ def main(args):
         args.batch_size = batch_size
         args.lr_graph = lr_graph
         args.lr_node = lr_node
-        acc = train_one_adapters(args)
-    
-    
+        acc, train_loader = train_one_adapters(args)
+        train_loaders[index] = train_loader
+
+    # --- Build MotifMoERouter: compute motif anchors from training data ---
+    router = MotifMoERouter(
+        temperature=args.prompt_tau,
+        novelty_threshold=args.novelty_threshold,
+    )
+
+    for index, dataset_name in enumerate(list_datasets):
+        router.add_task_motif(index, train_loaders[index])
+
+    # --- Phase 3: Test with TEM router ---
     all_acc = []
     for index, (dataset_name, num_tasks, batch_size, lr_graph, lr_node) in enumerate(zip(list_datasets, list_num_tasks, list_batch_sizes, list_lr_graph, list_lr_node)):
         args.index = index
@@ -440,23 +449,13 @@ def main(args):
         args.batch_size = batch_size
         args.lr_graph = lr_graph
         args.lr_node = lr_node
-        # acc = train_one_adapters(args)
-        acc = test_one_dataset(args)
+        acc = test_one_dataset(args, router=router)
         all_acc.append(acc)
         with open(f'./results/{args.gnn_type}_{args.pretrain_strategy}/G_Merging.txt', 'a') as file:
             file.write(f'data name: {dataset_name}\n')
             file.write(f'Test ROC AUC score: {acc}\n')
-    # all_acc_finetune = []
-    # with open(f'./shell/{args.gnn_type}_{args.pretrain_strategy}/finetune_model.txt', 'r') as file:
-    #     for line in file:
-    #         match = re.search(r'Test ROC AUC score: ([\d\.]+)', line)
-    #         if match:
-    #             all_acc_finetune.append(float(match.group(1)))
-    Nscore = 0
-    for i in range(8):
-        Nscore += all_acc[i]
-    Nscore = Nscore / 8
-    # print(f'Nscore: {Nscore:.2f}, file name: {file_name}')
+
+    Nscore = sum(all_acc) / 8
     print(f'Average score: {Nscore:.2f}')
 
 

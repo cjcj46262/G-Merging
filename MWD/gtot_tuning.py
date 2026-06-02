@@ -45,7 +45,7 @@ class GTOTRegularization(nn.Module):
         else:
             cos_dist = cos_distance
 
-            self.sensible_normalize(cos_dist, mask=mask)
+            cos_dist = self.sensible_normalize(cos_distance, mask=mask)
 
 
         # use different A^{order} as mask matrix

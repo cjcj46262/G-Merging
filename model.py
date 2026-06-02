@@ -15,6 +15,7 @@ from torch_geometric.nn.conv import GATConv
 from torch_scatter import scatter_add
 import torch_geometric.utils as PyG_utils
 from MWD.gtot_tuning import GTOTRegularization
+from dynamic_router import MotifMoERouter
 import math
 
 
@@ -213,7 +214,7 @@ class GraphSAGEConv(MessagePassing):
 
 class GNN(torch.nn.Module):
 
-    def __init__(self, num_layer, emb_dim, JK="last", drop_ratio=0, gnn_type="gin", surgery=False, moe=False, rank=30, num_experts=8, index=0, order=1, topk=8):
+    def __init__(self, num_layer, emb_dim, JK="last", drop_ratio=0, gnn_type="gin", surgery=False, moe=False, rank=30, num_experts=8, index=0, order=1, topk=8, router=None):
         super(GNN, self).__init__()
         self.num_layer = num_layer
         self.drop_ratio = drop_ratio
@@ -222,6 +223,7 @@ class GNN(torch.nn.Module):
         self.moe = moe
         self.index = index
         self.topk = topk
+        self.router = router  # EvolutionAwareRouter or None (falls back to TWD)
 
         if self.num_layer < 2:
             raise ValueError("Number of GNN layers must be greater than 1.")
@@ -320,6 +322,12 @@ class GNN(torch.nn.Module):
         x = self.x_embedding1(x[:, 0]) + self.x_embedding2(x[:, 1])
 
         h_list = [x]
+        # Pre-compute routing weights once using motif distribution
+        if self.moe and self.router is not None:
+            w_dict = self.router.route(edge_index, x.size(0))
+            routing_weights = torch.stack(list(w_dict.values()))  # [K]
+        else:
+            routing_weights = None
         # wd_list = []  #######heatmap
         for layer in range(self.num_layer):
             h = self.gnns[layer](h_list[layer], edge_index, edge_attr)
@@ -329,73 +337,42 @@ class GNN(torch.nn.Module):
                 h = h - self.surgery_mlps[layer](h)
                 # a = self.surgery_mlps[layer](h)
             if self.moe:
-                # h_list_moe = []
-                # for i in range(len(self.surgery_moe_layers[layer])):
-                #     h_list_moe.append(h - self.surgery_moe_layers[layer][i](h))
-                # h = torch.stack(h_list_moe, dim=0).mean(0)
-                # b_nodes_fea_s, b_mask_s = PyG_utils.to_dense_batch(x=moe_list[0], batch=batch)
-                # b_nodes_fea_t, b_mask_t = PyG_utils.to_dense_batch(x=moe_list[i], batch=batch)
-
-                # edge_index, edge_weight = PyG_utils.add_remaining_self_loops(edge_index, num_nodes=fm_tgt.size(0))
-                # b_A = PyG_utils.to_dense_adj(edge_index, batch=batch)
-
-                # _,wd = self.got_dist(f_s=moe_dense_list[self.index], f_t=moe_dense_list[i], A=b_A, mask=mask)
-
                 moe_list = []
-                moe_dense_list = []
                 wds = []
                 for i in range(len(self.surgery_moe_layers[layer])):
                     nodes_fea = self.surgery_moe_layers[layer][i](h)
                     moe_list.append(nodes_fea)
-                    nodes_fea_dense, mask = PyG_utils.to_dense_batch(x=moe_list[i], batch=batch)
-                    moe_dense_list.append(nodes_fea_dense)
 
-                moe_rep = torch.stack(moe_list, dim=1)
+                moe_rep = torch.stack(moe_list, dim=1)  # [num_nodes, num_experts, 300]
 
-                edge_index_new, edge_weight = PyG_utils.add_remaining_self_loops(edge_index, num_nodes=moe_list[0].size(0))
-                b_A = PyG_utils.to_dense_adj(edge_index_new, batch=batch)
-                # print(b_A.size())
-                # print(moe_dense_list[0].size())
-                # print(batch.size())
-                # sys.exit()
+                if routing_weights is not None:
+                    # --- Fast TEM-based routing ---
+                    # routing_weights: [K], expand to [num_nodes, num_experts, 300]
+                    moe_score = routing_weights.unsqueeze(0).unsqueeze(-1).expand(h.size(0), -1, 300)
+                else:
+                    # --- Original TWD-based routing (fallback) ---
+                    moe_dense_list = []
+                    for i in range(len(self.surgery_moe_layers[layer])):
+                        nodes_fea_dense, mask = PyG_utils.to_dense_batch(x=moe_list[i], batch=batch)
+                        moe_dense_list.append(nodes_fea_dense)
 
-                for i in range(len(self.surgery_moe_layers[layer])):
-                    _,wd = self.TWD.got_dist(f_s=moe_dense_list[self.index], f_t=moe_dense_list[i], A=b_A, mask=mask)
-                    wds.append(-wd)
-                moe_score = torch.stack(wds, dim=1)
-                # wd_list.append(F.softmax(moe_score / 0.4, dim=1))   #######heatmap
-                moe_score = moe_score[batch, :]
-                topk_values, topk_indices = torch.topk(moe_score, self.topk, dim=1)
-                T = 0.03
-                topk_values = F.softmax(topk_values / T, dim=1)
-                mask = torch.zeros_like(moe_score)
-                mask.scatter_(1, topk_indices, topk_values)
-                moe_score = mask
+                    edge_index_new, _ = PyG_utils.add_remaining_self_loops(edge_index, num_nodes=moe_list[0].size(0))
+                    b_A = PyG_utils.to_dense_adj(edge_index_new, batch=batch)
 
-                # moe_score = F.softmax(moe_score / T, dim=1)
-                moe_score = moe_score.unsqueeze(-1).expand(-1, -1, 300)
-                moe_rep = moe_rep * moe_score
-                h_moe = moe_rep.sum(dim=1)
+                    for i in range(len(self.surgery_moe_layers[layer])):
+                        _, wd = self.TWD.got_dist(f_s=moe_dense_list[self.index], f_t=moe_dense_list[i], A=b_A, mask=mask)
+                        wds.append(-wd)
+                    moe_score = torch.stack(wds, dim=1)  # [batch_size, num_experts]
+                    moe_score = moe_score[batch, :]       # [num_nodes, num_experts]
+                    topk_values, topk_indices = torch.topk(moe_score, self.topk, dim=1)
+                    T = 0.03
+                    topk_values = F.softmax(topk_values / T, dim=1)
+                    mask_topk = torch.zeros_like(moe_score)
+                    mask_topk.scatter_(1, topk_indices, topk_values)
+                    moe_score = mask_topk.unsqueeze(-1).expand(-1, -1, 300)
+
+                h_moe = (moe_rep * moe_score).sum(dim=1)
                 h = h - h_moe
-
-                # h = h - self.surgery_moe_layers[layer][self.index](h)
-
-                '''
-                moe_list = []
-                score_list = []
-                for i in range(len(self.surgery_moe_layers[layer])):
-                    moe_list.append(self.surgery_moe_layers[layer][i](h))
-                moe_rep = torch.stack(moe_list, dim=1)
-                for i in range(len(self.surgery_moe_layers[layer])):
-                    score_list.append(F.cosine_similarity(moe_list[i], moe_list[self.index], dim=1))
-                moe_score = torch.stack(score_list, dim=1)
-                T = 0.01
-                moe_score = F.softmax(moe_score / T, dim=1)
-                moe_score = moe_score.unsqueeze(-1).expand(-1, -1, 300)
-                moe_rep = moe_rep * moe_score
-                h_moe = moe_rep.sum(dim=1)
-                h = h - h_moe
-                '''
             h = self.batch_norms[layer](h)
 
             #print(torch.isnan(h).any())
@@ -436,7 +413,7 @@ class GNN(torch.nn.Module):
 
 class GNN_graphpred(torch.nn.Module):
 
-    def __init__(self, args, surgery=False, moe=False):
+    def __init__(self, args, surgery=False, moe=False, router=None):
         super(GNN_graphpred, self).__init__()
         self.num_layer = args.num_layer
         self.drop_ratio = args.dropout_ratio
@@ -453,7 +430,7 @@ class GNN_graphpred(torch.nn.Module):
         if self.num_layer < 2:
             raise ValueError("Number of GNN layers must be greater than 1.")
 
-        self.gnn = GNN(self.num_layer, self.emb_dim, self.JK, self.drop_ratio, gnn_type=self.gnn_type, surgery=surgery, moe=moe, rank=args.rank, num_experts=args.num_experts, index=args.index, order=args.gtot_order, topk=args.topk)
+        self.gnn = GNN(self.num_layer, self.emb_dim, self.JK, self.drop_ratio, gnn_type=self.gnn_type, surgery=surgery, moe=moe, rank=args.rank, num_experts=args.num_experts, index=args.index, order=args.gtot_order, topk=args.topk, router=router)
 
         # Different kind of graph pooling
         if self.graph_pooling == "sum":
